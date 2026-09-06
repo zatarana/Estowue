@@ -151,6 +151,7 @@ fun BackupExportDialog(
 
     var selectedCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedBrandFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedLocationFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedMovementType by rememberSaveable { mutableStateOf<com.example.data.model.MovementType?>(null) }
     var isDiscardOnly by rememberSaveable { mutableStateOf(false) }
@@ -162,6 +163,12 @@ fun BackupExportDialog(
         products.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
+    val uniqueLocations = remember(products, productsWithLots) {
+        val pLocs = products.map { it.location }.filter { it.isNotBlank() }
+        val lLocs = productsWithLots.flatMap { it.lots }.map { it.location }.filter { it.isNotBlank() }
+        (pLocs + lLocs).distinct().sorted()
+    }
+
     val sortedProducts = remember(products) {
         products.sortedBy { it.name }
     }
@@ -170,6 +177,7 @@ fun BackupExportDialog(
         productsWithLots,
         selectedCategoryFilter,
         selectedBrandFilter,
+        selectedLocationFilter,
         selectedProductId,
         selectedStockFilter,
         selectedAlertDays
@@ -178,6 +186,7 @@ fun BackupExportDialog(
             productsWithLots = productsWithLots,
             selectedCategory = selectedCategoryFilter,
             selectedBrand = selectedBrandFilter,
+            selectedLocation = selectedLocationFilter,
             selectedProductId = selectedProductId,
             stockFilter = selectedStockFilter,
             alertDays = selectedAlertDays
@@ -192,15 +201,24 @@ fun BackupExportDialog(
         filteredProductsWithLots.flatMap { it.lots }
     }
 
-    val filteredMovements = remember(movements, filteredProducts, selectedMovementPeriodDays, selectedMovementType, isDiscardOnly) {
+    val filteredMovements = remember(movements, filteredProducts, selectedMovementPeriodDays, selectedMovementType, isDiscardOnly, selectedBrandFilter, selectedProductId, selectedLocationFilter) {
         val prodIds = filteredProducts.map { it.id }.toSet()
         val byProduct = movements.filter { prodIds.contains(it.productId) }
-        BackupManager.filterMovements(byProduct, selectedMovementPeriodDays, selectedMovementType, isDiscardOnly)
+        BackupManager.filterMovements(
+            movements = byProduct,
+            periodDays = selectedMovementPeriodDays,
+            movementType = selectedMovementType,
+            selectedBrand = selectedBrandFilter,
+            selectedProductId = selectedProductId,
+            selectedLocation = selectedLocationFilter,
+            discardOnly = isDiscardOnly
+        )
     }
 
     val filterSummaryDescription = remember(
         selectedCategoryFilter,
         selectedBrandFilter,
+        selectedLocationFilter,
         selectedProductId,
         selectedStockFilter,
         selectedAlertDays,
@@ -211,6 +229,7 @@ fun BackupExportDialog(
         val parts = mutableListOf<String>()
         parts.add(selectedCategoryFilter?.let { "Cat: $it" } ?: "Todas as Categorias")
         parts.add(selectedBrandFilter?.let { "Marca: $it" } ?: "Todas as Marcas")
+        selectedLocationFilter?.let { parts.add("Local: $it") }
         parts.add(selectedProductId?.let { id -> "Produto: " + products.find { it.id == id }?.name } ?: "Todos os Produtos")
         parts.add(selectedStockFilter.label)
         if (selectedStockFilter == ExportStockFilter.EXPIRING_SOON) {

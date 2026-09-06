@@ -179,6 +179,8 @@ fun MainAppContent(viewModel: StockViewModel) {
 
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategoryFilter by viewModel.selectedCategoryFilter.collectAsStateWithLifecycle()
+    val selectedBrandFilter by viewModel.selectedBrandFilter.collectAsStateWithLifecycle()
+    val selectedLocationFilter by viewModel.selectedLocationFilter.collectAsStateWithLifecycle()
     val selectedHealthFilter by viewModel.selectedHealthFilter.collectAsStateWithLifecycle()
     val selectedExpFilter by viewModel.selectedExpirationFilter.collectAsStateWithLifecycle()
     val expirationAlertDays by viewModel.expirationAlertDays.collectAsStateWithLifecycle()
@@ -350,10 +352,14 @@ fun MainAppContent(viewModel: StockViewModel) {
                     categories = categories,
                     searchQuery = searchQuery,
                     selectedCategory = selectedCategoryFilter,
+                    selectedBrand = selectedBrandFilter,
+                    selectedLocation = selectedLocationFilter,
                     selectedHealth = selectedHealthFilter,
                     selectedExpFilter = selectedExpFilter,
                     onSearchChange = { viewModel.setSearchQuery(it) },
                     onCategorySelect = { viewModel.setCategoryFilter(it) },
+                    onBrandSelect = { viewModel.setBrandFilter(it) },
+                    onLocationSelect = { viewModel.setLocationFilter(it) },
                     onHealthSelect = { viewModel.setHealthFilter(it) },
                     onExpFilterSelect = { viewModel.setExpirationFilter(it) },
                     onClearFilters = { viewModel.clearFilters() },

@@ -2,7 +2,6 @@ package com.example.ui.dialogs
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +26,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,33 +67,50 @@ import com.example.data.backup.ExportStockFilter
 import com.example.data.model.Category
 import com.example.data.model.Product
 import com.example.data.model.ProductWithLots
+import com.example.data.model.StockLot
+import com.example.data.model.StockMovement
 import com.example.ui.components.parseHexColor
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.RoseRed
 import com.example.ui.theme.RoyalBlue
 import com.example.utils.PdfReportService
+import java.util.Locale
+
+enum class PdfReportType(val title: String, val desc: String) {
+    INVENTORY("Inventário Geral", "Lista produtos, estoque total, estoque mínimo e lotes"),
+    FEFO_LOTS("Validades & Lotes (FEFO)", "Lista lotes ordenados por data de vencimento"),
+    LOW_STOCK("Reposição Urgente", "Lista apenas produtos abaixo do estoque mínimo"),
+    MOVEMENTS("Auditoria de Movimentações", "Lista histórico de entradas, saídas e descartes")
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuickPdfExportDialog(
     productsWithLots: List<ProductWithLots>,
     categories: List<Category>,
+    movements: List<StockMovement> = emptyList(),
     currentAlertDays: Int = 30,
     initialCategory: String? = null,
+    initialBrand: String? = null,
+    initialLocation: String? = null,
+    initialReportType: PdfReportType = PdfReportType.INVENTORY,
     initialStockFilter: ExportStockFilter = ExportStockFilter.ALL,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
 
+    var selectedReportType by rememberSaveable { mutableStateOf(initialReportType) }
     var selectedStockFilter by rememberSaveable { mutableStateOf(initialStockFilter) }
     var selectedCategoryFilter by rememberSaveable { mutableStateOf(initialCategory) }
-    var selectedBrandFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedBrandFilter by rememberSaveable { mutableStateOf(initialBrand) }
+    var selectedLocationFilter by rememberSaveable { mutableStateOf(initialLocation) }
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedAlertDays by rememberSaveable { mutableIntStateOf(currentAlertDays) }
     var isGeneratingPdf by remember { mutableStateOf(false) }
 
     var brandDropdownExpanded by rememberSaveable { mutableStateOf(false) }
+    var locationDropdownExpanded by rememberSaveable { mutableStateOf(false) }
     var productDropdownExpanded by rememberSaveable { mutableStateOf(false) }
 
     val allProducts = remember(productsWithLots) {
@@ -103,11 +121,18 @@ fun QuickPdfExportDialog(
         allProducts.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
+    val uniqueLocations = remember(productsWithLots) {
+        val prodLocations = productsWithLots.map { it.product.location }.filter { it.isNotBlank() }
+        val lotLocations = productsWithLots.flatMap { it.lots.map { lot -> lot.location } }.filter { it.isNotBlank() }
+        (prodLocations + lotLocations).distinct().sorted()
+    }
+
     // Filter products
     val filteredProductsWithLots = remember(
         productsWithLots,
         selectedCategoryFilter,
         selectedBrandFilter,
+        selectedLocationFilter,
         selectedProductId,
         selectedStockFilter,
         selectedAlertDays
@@ -116,9 +141,43 @@ fun QuickPdfExportDialog(
             productsWithLots = productsWithLots,
             selectedCategory = selectedCategoryFilter,
             selectedBrand = selectedBrandFilter,
+            selectedLocation = selectedLocationFilter,
             selectedProductId = selectedProductId,
             stockFilter = selectedStockFilter,
             alertDays = selectedAlertDays
+        )
+    }
+
+    // Filter lots for FEFO report
+    val filteredLotsWithProduct = remember(
+        filteredProductsWithLots,
+        selectedLocationFilter,
+        selectedAlertDays
+    ) {
+        val now = System.currentTimeMillis()
+        filteredProductsWithLots.flatMap { pWithLots ->
+            pWithLots.lots
+                .filter { lot ->
+                    val hasStock = lot.quantity > 0.001
+                    val matchesLoc = selectedLocationFilter == null || lot.location.equals(selectedLocationFilter, ignoreCase = true) || pWithLots.product.location.equals(selectedLocationFilter, ignoreCase = true)
+                    hasStock && matchesLoc
+                }
+                .map { lot -> pWithLots.product to lot }
+        }.sortedBy { it.second.expirationDate }
+    }
+
+    // Filter movements
+    val filteredMovements = remember(
+        movements,
+        selectedBrandFilter,
+        selectedProductId,
+        selectedLocationFilter
+    ) {
+        BackupManager.filterMovements(
+            movements = movements,
+            selectedBrand = selectedBrandFilter,
+            selectedProductId = selectedProductId,
+            selectedLocation = selectedLocationFilter
         )
     }
 
@@ -133,6 +192,7 @@ fun QuickPdfExportDialog(
     val filterSummary = remember(
         selectedCategoryFilter,
         selectedBrandFilter,
+        selectedLocationFilter,
         selectedProductId,
         selectedStockFilter,
         selectedAlertDays
@@ -140,6 +200,7 @@ fun QuickPdfExportDialog(
         val parts = mutableListOf<String>()
         selectedCategoryFilter?.let { parts.add("Categoria: $it") }
         selectedBrandFilter?.let { parts.add("Marca: $it") }
+        selectedLocationFilter?.let { parts.add("Local: $it") }
         selectedProductId?.let { id ->
             val pName = allProducts.find { it.id == id }?.name
             if (pName != null) parts.add("Produto: $pName")
@@ -157,14 +218,14 @@ fun QuickPdfExportDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .padding(vertical = 8.dp),
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(18.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 // Header
@@ -191,12 +252,12 @@ fun QuickPdfExportDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Exportar Estoque em PDF",
+                                text = "Exportar Relatório PDF",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Relatório formatado para impressão ou envio",
+                                text = "Formatação profissional para impressão e envio",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -208,15 +269,52 @@ fun QuickPdfExportDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // FILTERS CARD
+                // REPORT TYPE SELECTOR
+                Text(
+                    text = "Modelo do Relatório:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    PdfReportType.values().forEach { type ->
+                        if (type != PdfReportType.MOVEMENTS || movements.isNotEmpty()) {
+                            FilterChip(
+                                selected = selectedReportType == type,
+                                onClick = {
+                                    selectedReportType = type
+                                    if (type == PdfReportType.LOW_STOCK) {
+                                        selectedStockFilter = ExportStockFilter.LOW_STOCK
+                                    } else if (type == PdfReportType.FEFO_LOTS) {
+                                        selectedStockFilter = ExportStockFilter.ALL
+                                    }
+                                },
+                                label = { Text(type.title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RoyalBlue.copy(alpha = 0.2f),
+                                    selectedLabelColor = RoyalBlue
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // FILTERS CONTAINER
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -227,22 +325,23 @@ fun QuickPdfExportDialog(
                                     Icons.Default.FilterAlt,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Filtros do Relatório:",
+                                    text = "Filtros Aplicados:",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
 
-                            if (selectedCategoryFilter != null || selectedBrandFilter != null || selectedProductId != null || selectedStockFilter != ExportStockFilter.ALL) {
-                                androidx.compose.material3.TextButton(
+                            if (selectedCategoryFilter != null || selectedBrandFilter != null || selectedLocationFilter != null || selectedProductId != null || selectedStockFilter != ExportStockFilter.ALL) {
+                                TextButton(
                                     onClick = {
                                         selectedCategoryFilter = null
                                         selectedBrandFilter = null
+                                        selectedLocationFilter = null
                                         selectedProductId = null
                                         selectedStockFilter = ExportStockFilter.ALL
                                     },
@@ -259,50 +358,35 @@ fun QuickPdfExportDialog(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // 1. Stock Status Filter
-                        Text("Situação do Estoque:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            ExportStockFilter.values().forEach { filter ->
-                                FilterChip(
-                                    selected = selectedStockFilter == filter,
-                                    onClick = { selectedStockFilter = filter },
-                                    label = { Text(filter.label, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = when (filter) {
-                                            ExportStockFilter.LOW_STOCK -> AmberWarning.copy(alpha = 0.25f)
-                                            ExportStockFilter.EXPIRED -> RoseRed.copy(alpha = 0.25f)
-                                            ExportStockFilter.EXPIRING_SOON -> AmberWarning.copy(alpha = 0.25f)
-                                            else -> MaterialTheme.colorScheme.primaryContainer
-                                        }
-                                    )
-                                )
-                            }
-                        }
-
-                        // Expiring days selector
-                        if (selectedStockFilter == ExportStockFilter.EXPIRING_SOON) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("Janela de Vencimento:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // 1. Stock Status Filter (if inventory or generic)
+                        if (selectedReportType == PdfReportType.INVENTORY) {
+                            Text("Situação do Estoque:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf(7, 15, 30, 45, 60, 90).forEach { days ->
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ExportStockFilter.values().forEach { filter ->
                                     FilterChip(
-                                        selected = selectedAlertDays == days,
-                                        onClick = { selectedAlertDays = days },
-                                        label = { Text("$days dias", fontSize = 11.sp) }
+                                        selected = selectedStockFilter == filter,
+                                        onClick = { selectedStockFilter = filter },
+                                        label = { Text(filter.label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = when (filter) {
+                                                ExportStockFilter.LOW_STOCK -> AmberWarning.copy(alpha = 0.25f)
+                                                ExportStockFilter.EXPIRED -> RoseRed.copy(alpha = 0.25f)
+                                                ExportStockFilter.EXPIRING_SOON -> AmberWarning.copy(alpha = 0.25f)
+                                                else -> MaterialTheme.colorScheme.primaryContainer
+                                            }
+                                        )
                                     )
                                 }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
-
-                        Spacer(modifier = Modifier.height(10.dp))
 
                         // 2. Category Filter
                         Text("Categoria:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -338,11 +422,11 @@ fun QuickPdfExportDialog(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // 3. Brand & Product dropdowns
+                        // 3. Brand & Location dropdowns
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Brand
+                            // Brand Dropdown
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Marca:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -379,19 +463,19 @@ fun QuickPdfExportDialog(
                                 }
                             }
 
-                            // Product
+                            // Location Dropdown
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Produto Específico:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Localização:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Box {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         color = MaterialTheme.colorScheme.surface,
                                         shape = RoundedCornerShape(8.dp),
-                                        onClick = { productDropdownExpanded = true }
+                                        onClick = { locationDropdownExpanded = true }
                                     ) {
                                         Text(
-                                            text = selectedProductId?.let { id -> allProducts.find { it.id == id }?.name } ?: "Todos",
+                                            text = selectedLocationFilter ?: "Todos os Locais",
                                             fontSize = 11.sp,
                                             modifier = Modifier.padding(8.dp),
                                             maxLines = 1,
@@ -399,19 +483,58 @@ fun QuickPdfExportDialog(
                                         )
                                     }
                                     DropdownMenu(
-                                        expanded = productDropdownExpanded,
-                                        onDismissRequest = { productDropdownExpanded = false }
+                                        expanded = locationDropdownExpanded,
+                                        onDismissRequest = { locationDropdownExpanded = false }
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Todos os Produtos") },
-                                            onClick = { selectedProductId = null; productDropdownExpanded = false }
+                                            text = { Text("Todos os Locais") },
+                                            onClick = { selectedLocationFilter = null; locationDropdownExpanded = false }
                                         )
-                                        allProducts.forEach { prod ->
+                                        uniqueLocations.forEach { loc ->
                                             DropdownMenuItem(
-                                                text = { Text(prod.name) },
-                                                onClick = { selectedProductId = prod.id; productDropdownExpanded = false }
+                                                text = { Text(loc) },
+                                                onClick = { selectedLocationFilter = loc; locationDropdownExpanded = false }
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 4. Product Dropdown
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text("Produto Específico:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(8.dp),
+                                    onClick = { productDropdownExpanded = true }
+                                ) {
+                                    Text(
+                                        text = selectedProductId?.let { id -> allProducts.find { it.id == id }?.name } ?: "Todos os Produtos",
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(8.dp),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = productDropdownExpanded,
+                                    onDismissRequest = { productDropdownExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Todos os Produtos") },
+                                        onClick = { selectedProductId = null; productDropdownExpanded = false }
+                                    )
+                                    allProducts.forEach { prod ->
+                                        DropdownMenuItem(
+                                            text = { Text(prod.name) },
+                                            onClick = { selectedProductId = prod.id; productDropdownExpanded = false }
+                                        )
                                     }
                                 }
                             }
@@ -419,9 +542,9 @@ fun QuickPdfExportDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Live Counter Box
+                // LIVE PREVIEW COUNTER
                 Surface(
                     color = RoyalBlue.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(12.dp),
@@ -434,58 +557,96 @@ fun QuickPdfExportDialog(
                     ) {
                         Column {
                             Text(
-                                text = "Itens incluídos no PDF:",
+                                text = "Registros inclusos no PDF:",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            val summaryCount = when (selectedReportType) {
+                                PdfReportType.MOVEMENTS -> "${filteredMovements.size} movimentação(ões)"
+                                PdfReportType.FEFO_LOTS -> "${filteredLotsWithProduct.size} lote(s) listado(s)"
+                                else -> "${filteredProductsWithLots.size} produto(s) • $totalActiveLots lote(s)"
+                            }
                             Text(
-                                text = "${filteredProductsWithLots.size} produto(s) • $totalActiveLots lote(s) ativos",
+                                text = summaryCount,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = RoyalBlue
                             )
                         }
 
-                        Text(
-                            text = "${String.format(java.util.Locale.getDefault(), "%.1f", totalStockUnits)} un",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RoyalBlue
-                        )
+                        if (selectedReportType != PdfReportType.MOVEMENTS) {
+                            Text(
+                                text = "${String.format(Locale.getDefault(), "%.1f", totalStockUnits)} un",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RoyalBlue
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Action Buttons
                 Button(
                     onClick = {
-                        if (filteredProductsWithLots.isEmpty()) {
-                            Toast.makeText(context, "Nenhum produto atende aos filtros selecionados.", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
                         isGeneratingPdf = true
-                        val filterLabel = selectedStockFilter.label
-                        val pdfFile = PdfReportService.generateStockReportPdf(
-                            context = context,
-                            products = filteredProductsWithLots,
-                            filterName = filterLabel,
-                            subtitleFilter = filterSummary
-                        )
+                        val pdfFile = when (selectedReportType) {
+                            PdfReportType.FEFO_LOTS -> {
+                                if (filteredLotsWithProduct.isEmpty()) {
+                                    Toast.makeText(context, "Nenhum lote atende aos filtros.", Toast.LENGTH_SHORT).show()
+                                    isGeneratingPdf = false
+                                    return@Button
+                                }
+                                PdfReportService.generateFefoLotsReportPdf(
+                                    context = context,
+                                    lotsWithProduct = filteredLotsWithProduct,
+                                    filterName = "Validades (FEFO)",
+                                    subtitleFilter = filterSummary
+                                )
+                            }
+                            PdfReportType.MOVEMENTS -> {
+                                if (filteredMovements.isEmpty()) {
+                                    Toast.makeText(context, "Nenhuma movimentação atende aos filtros.", Toast.LENGTH_SHORT).show()
+                                    isGeneratingPdf = false
+                                    return@Button
+                                }
+                                PdfReportService.generateMovementsReportPdf(
+                                    context = context,
+                                    movements = filteredMovements,
+                                    filterName = "Histórico de Movimentações",
+                                    subtitleFilter = filterSummary
+                                )
+                            }
+                            else -> {
+                                if (filteredProductsWithLots.isEmpty()) {
+                                    Toast.makeText(context, "Nenhum produto atende aos filtros.", Toast.LENGTH_SHORT).show()
+                                    isGeneratingPdf = false
+                                    return@Button
+                                }
+                                val reportLabel = if (selectedReportType == PdfReportType.LOW_STOCK) "Reposição Abaixo do Mínimo" else selectedStockFilter.label
+                                PdfReportService.generateStockReportPdf(
+                                    context = context,
+                                    products = filteredProductsWithLots,
+                                    filterName = reportLabel,
+                                    subtitleFilter = filterSummary
+                                )
+                            }
+                        }
                         isGeneratingPdf = false
 
                         if (pdfFile != null) {
                             PdfReportService.openOrSharePdf(
                                 context = context,
                                 file = pdfFile,
-                                title = "Relatorio_Estoque_${filterLabel}"
+                                title = "Relatorio_${selectedReportType.name}"
                             )
                             onDismiss()
                         } else {
                             Toast.makeText(context, "Erro ao gerar PDF.", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    enabled = !isGeneratingPdf && filteredProductsWithLots.isNotEmpty(),
+                    enabled = !isGeneratingPdf,
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier

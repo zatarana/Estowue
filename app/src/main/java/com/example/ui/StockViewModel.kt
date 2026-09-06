@@ -135,6 +135,12 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
     val selectedCategoryFilter: StateFlow<String?> = _selectedCategoryFilter.asStateFlow()
 
+    private val _selectedBrandFilter = MutableStateFlow<String?>(null)
+    val selectedBrandFilter: StateFlow<String?> = _selectedBrandFilter.asStateFlow()
+
+    private val _selectedLocationFilter = MutableStateFlow<String?>(null)
+    val selectedLocationFilter: StateFlow<String?> = _selectedLocationFilter.asStateFlow()
+
     private val _selectedHealthFilter = MutableStateFlow<StockHealthStatus?>(null)
     val selectedHealthFilter: StateFlow<StockHealthStatus?> = _selectedHealthFilter.asStateFlow()
 
@@ -144,6 +150,8 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     private data class FilterParams(
         val query: String,
         val category: String?,
+        val brand: String?,
+        val location: String?,
         val health: StockHealthStatus?,
         val expFilter: ExpirationFilter,
         val alertDays: Int
@@ -152,16 +160,19 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     // Filtered Products
     val filteredProductsWithLots: StateFlow<List<ProductWithLots>> = combine(
         productsWithLots,
-        combine(
-            _searchQuery,
-            _selectedCategoryFilter,
-            _selectedHealthFilter,
-            _selectedExpirationFilter,
-            _expirationAlertDays
-        ) { query, category, health, expFilter, alertDays ->
-            FilterParams(query, category, health, expFilter, alertDays)
-        }
-    ) { products, params ->
+        _searchQuery,
+        _selectedCategoryFilter,
+        _selectedBrandFilter,
+        _selectedLocationFilter
+    ) { products, query, category, brand, location ->
+        Triple(products, FilterParams(query, category, brand, location, _selectedHealthFilter.value, _selectedExpirationFilter.value, _expirationAlertDays.value), Unit)
+    }.combine(_selectedHealthFilter) { triple, health ->
+        triple.copy(second = triple.second.copy(health = health))
+    }.combine(_selectedExpirationFilter) { triple, expFilter ->
+        triple.copy(second = triple.second.copy(expFilter = expFilter))
+    }.combine(_expirationAlertDays) { triple, alertDays ->
+        val (products, initialParams) = triple
+        val params = initialParams.copy(alertDays = alertDays)
         val now = System.currentTimeMillis()
 
         products.filter { pWithLots ->
@@ -172,9 +183,15 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 product.brand.contains(params.query, ignoreCase = true) ||
                 product.barcode.contains(params.query, ignoreCase = true) ||
                 product.category.contains(params.query, ignoreCase = true) ||
-                product.location.contains(params.query, ignoreCase = true)
+                product.location.contains(params.query, ignoreCase = true) ||
+                pWithLots.lots.any { it.lotNumber.contains(params.query, ignoreCase = true) || it.location.contains(params.query, ignoreCase = true) }
 
             val matchesCategory = params.category == null || product.category.equals(params.category, ignoreCase = true)
+            val matchesBrand = params.brand == null || product.brand.equals(params.brand, ignoreCase = true)
+            val matchesLocation = params.location == null ||
+                product.location.equals(params.location, ignoreCase = true) ||
+                pWithLots.lots.any { it.location.equals(params.location, ignoreCase = true) }
+
             val matchesHealth = params.health == null || pWithLots.stockHealthStatus == params.health
 
             val matchesExpFilter = when (params.expFilter) {
@@ -185,7 +202,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 ExpirationFilter.VALID -> pWithLots.lots.any { it.quantity > 0.001 && it.daysUntilExpiration(now) > params.alertDays }
             }
 
-            matchesQuery && matchesCategory && matchesHealth && matchesExpFilter
+            matchesQuery && matchesCategory && matchesBrand && matchesLocation && matchesHealth && matchesExpFilter
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -213,6 +230,14 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCategoryFilter.value = if (_selectedCategoryFilter.value == category) null else category
     }
 
+    fun setBrandFilter(brand: String?) {
+        _selectedBrandFilter.value = if (_selectedBrandFilter.value == brand) null else brand
+    }
+
+    fun setLocationFilter(location: String?) {
+        _selectedLocationFilter.value = if (_selectedLocationFilter.value == location) null else location
+    }
+
     fun setHealthFilter(health: StockHealthStatus?) {
         _selectedHealthFilter.value = if (_selectedHealthFilter.value == health) null else health
     }
@@ -224,6 +249,8 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     fun clearFilters() {
         _searchQuery.value = ""
         _selectedCategoryFilter.value = null
+        _selectedBrandFilter.value = null
+        _selectedLocationFilter.value = null
         _selectedHealthFilter.value = null
         _selectedExpirationFilter.value = ExpirationFilter.ALL
     }

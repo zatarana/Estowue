@@ -91,16 +91,26 @@ import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.PurpleAccent
 import com.example.ui.theme.RoseRed
 
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+
 @Composable
 fun ProductsScreen(
     productsWithLots: List<ProductWithLots>,
     categories: List<Category>,
     searchQuery: String,
     selectedCategory: String?,
+    selectedBrand: String? = null,
+    selectedLocation: String? = null,
     selectedHealth: StockHealthStatus?,
     selectedExpFilter: ExpirationFilter,
     onSearchChange: (String) -> Unit,
     onCategorySelect: (String?) -> Unit,
+    onBrandSelect: (String?) -> Unit = {},
+    onLocationSelect: (String?) -> Unit = {},
     onHealthSelect: (StockHealthStatus?) -> Unit,
     onExpFilterSelect: (ExpirationFilter) -> Unit,
     onClearFilters: () -> Unit,
@@ -117,6 +127,19 @@ fun ProductsScreen(
     var productToDelete by remember { mutableStateOf<Product?>(null) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showQuickPdfDialog by remember { mutableStateOf(false) }
+    var brandDropdownExpanded by remember { mutableStateOf(false) }
+    var locationDropdownExpanded by remember { mutableStateOf(false) }
+
+    val availableBrands = remember(productsWithLots) {
+        productsWithLots.map { it.product.brand }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val availableLocations = remember(productsWithLots) {
+        val pLocs = productsWithLots.map { it.product.location }.filter { it.isNotBlank() }
+        val lLocs = productsWithLots.flatMap { it.lots.map { l -> l.location } }.filter { it.isNotBlank() }
+        (pLocs + lLocs).distinct().sorted()
+    }
+
+    val hasActiveFilters = searchQuery.isNotBlank() || selectedCategory != null || selectedBrand != null || selectedLocation != null || selectedHealth != null || selectedExpFilter != ExpirationFilter.ALL
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -135,7 +158,7 @@ fun ProductsScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    // Search text field with Barcode scanner button
+                    // Search text field with Barcode scanner button and Quick PDF button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -144,7 +167,7 @@ fun ProductsScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = onSearchChange,
-                            placeholder = { Text("Buscar nome, marca, código...") },
+                            placeholder = { Text("Buscar produto, marca, lote...") },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             trailingIcon = {
@@ -176,6 +199,25 @@ fun ProductsScreen(
                                     Icons.Default.QrCodeScanner,
                                     contentDescription = "Escanear Código de Barras",
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = com.example.ui.theme.RoyalBlue.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            IconButton(
+                                onClick = { showQuickPdfDialog = true },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .testTag("btn_top_pdf_products")
+                            ) {
+                                Icon(
+                                    Icons.Default.PictureAsPdf,
+                                    contentDescription = "Exportar PDF do Estoque",
+                                    tint = com.example.ui.theme.RoyalBlue
                                 )
                             }
                         }
@@ -228,6 +270,77 @@ fun ProductsScreen(
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Brand & Location Dropdown / Quick Filter Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Brand filter chip/menu
+                        Box(modifier = Modifier.weight(1f)) {
+                            FilterChip(
+                                selected = selectedBrand != null,
+                                onClick = { brandDropdownExpanded = true },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(selectedBrand ?: "Marca: Todas", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DropdownMenu(
+                                expanded = brandDropdownExpanded,
+                                onDismissRequest = { brandDropdownExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Todas as Marcas") },
+                                    onClick = { onBrandSelect(null); brandDropdownExpanded = false }
+                                )
+                                availableBrands.forEach { brand ->
+                                    DropdownMenuItem(
+                                        text = { Text(brand) },
+                                        onClick = { onBrandSelect(brand); brandDropdownExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Location filter chip/menu
+                        Box(modifier = Modifier.weight(1f)) {
+                            FilterChip(
+                                selected = selectedLocation != null,
+                                onClick = { locationDropdownExpanded = true },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(selectedLocation ?: "Local: Todos", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DropdownMenu(
+                                expanded = locationDropdownExpanded,
+                                onDismissRequest = { locationDropdownExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Todos os Locais") },
+                                    onClick = { onLocationSelect(null); locationDropdownExpanded = false }
+                                )
+                                availableLocations.forEach { loc ->
+                                    DropdownMenuItem(
+                                        text = { Text(loc) },
+                                        onClick = { onLocationSelect(loc); locationDropdownExpanded = false }
+                                    )
+                                }
                             }
                         }
                     }
@@ -299,6 +412,30 @@ fun ProductsScreen(
                                     }
                                 }
                             )
+                        }
+                    }
+
+                    // Active Filters bar with clear button
+                    if (hasActiveFilters) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Filtro ativo (${productsWithLots.size} exibidos)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            TextButton(
+                                onClick = onClearFilters,
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(24.dp)
+                            ) {
+                                Text("Limpar Filtros", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
@@ -463,6 +600,8 @@ fun ProductsScreen(
             productsWithLots = productsWithLots,
             categories = categories,
             initialCategory = selectedCategory,
+            initialBrand = selectedBrand,
+            initialLocation = selectedLocation,
             onDismiss = { showQuickPdfDialog = false }
         )
     }

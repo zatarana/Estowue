@@ -52,25 +52,65 @@ import com.example.ui.components.formatQuantity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+
+enum class MovementPeriodFilter(val label: String, val days: Int?) {
+    ALL("Todo o Histórico", null),
+    TODAY("Hoje", 1),
+    LAST_7_DAYS("Últimos 7 dias", 7),
+    LAST_30_DAYS("Últimos 30 dias", 30)
+}
+
 @Composable
 fun MovementsHistoryScreen(
     movements: List<StockMovement>,
     onEditMovement: (StockMovement) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var filterType by rememberSaveable { mutableStateOf<MovementType?>(null) }
     var filterQuery by rememberSaveable { mutableStateOf("") }
+    var selectedBrand by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedPeriod by rememberSaveable { mutableStateOf(MovementPeriodFilter.ALL) }
+    var brandMenuOpen by remember { mutableStateOf(false) }
 
+    val availableBrands = remember(movements) {
+        movements.map { it.productBrand }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
+    val now = System.currentTimeMillis()
     val filteredList = movements.filter { mov ->
         val matchesType = filterType == null || mov.type == filterType
         val matchesQuery = filterQuery.isBlank() ||
             mov.productName.contains(filterQuery, ignoreCase = true) ||
             mov.productBrand.contains(filterQuery, ignoreCase = true) ||
             mov.reason.contains(filterQuery, ignoreCase = true) ||
+            mov.lotNumber.contains(filterQuery, ignoreCase = true) ||
             mov.documentNumber.contains(filterQuery, ignoreCase = true)
 
-        matchesType && matchesQuery
+        val matchesBrand = selectedBrand == null || mov.productBrand.equals(selectedBrand, ignoreCase = true)
+
+        val matchesPeriod = when (val days = selectedPeriod.days) {
+            null -> true
+            else -> {
+                val cutoff = now - (days * 24L * 60L * 60L * 1000L)
+                mov.timestamp >= cutoff
+            }
+        }
+
+        matchesType && matchesQuery && matchesBrand && matchesPeriod
     }
+
+    val hasActiveFilters = filterQuery.isNotBlank() || filterType != null || selectedBrand != null || selectedPeriod != MovementPeriodFilter.ALL
 
     Column(
         modifier = modifier
@@ -88,25 +128,127 @@ fun MovementsHistoryScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                OutlinedTextField(
-                    value = filterQuery,
-                    onValueChange = { filterQuery = it },
-                    placeholder = { Text("Filtrar por produto, marca, NF, motivo...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    shape = RoundedCornerShape(14.dp),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = filterQuery,
+                        onValueChange = { filterQuery = it },
+                        placeholder = { Text("Buscar produto, marca, NF, motivo...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (filterQuery.isNotEmpty()) {
+                                IconButton(onClick = { filterQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Limpar")
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("input_search_movements"),
+                        singleLine = true
+                    )
+
+                    Surface(
+                        color = com.example.ui.theme.RoyalBlue.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                val pdf = com.example.utils.PdfReportService.generateMovementsReportPdf(
+                                    context = context,
+                                    movements = filteredList,
+                                    filterName = "Histórico de Movimentações (" + (filterType?.label ?: "Todos") + " - " + (selectedBrand ?: "Todas Marcas") + ")"
+                                )
+                                if (pdf != null) {
+                                    com.example.utils.PdfReportService.openOrSharePdf(
+                                        context = context,
+                                        file = pdf,
+                                        title = "Relatorio_Movimentacoes"
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("btn_pdf_movements_screen")
+                        ) {
+                            Icon(
+                                Icons.Default.PictureAsPdf,
+                                contentDescription = "Exportar PDF de Movimentações",
+                                tint = com.example.ui.theme.RoyalBlue
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Brand & Period Filters
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Brand dropdown
+                    Box(modifier = Modifier.weight(1f)) {
+                        FilterChip(
+                            selected = selectedBrand != null,
+                            onClick = { brandMenuOpen = true },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(selectedBrand ?: "Marca: Todas", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(
+                            expanded = brandMenuOpen,
+                            onDismissRequest = { brandMenuOpen = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Todas as Marcas") },
+                                onClick = { selectedBrand = null; brandMenuOpen = false }
+                            )
+                            availableBrands.forEach { b ->
+                                DropdownMenuItem(
+                                    text = { Text(b) },
+                                    onClick = { selectedBrand = b; brandMenuOpen = false }
+                                )
+                            }
+                        }
+                    }
+
+                    // Period chips
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1.3f)
+                    ) {
+                        items(MovementPeriodFilter.values().toList(), key = { it.name }) { period ->
+                            FilterChip(
+                                selected = selectedPeriod == period,
+                                onClick = { selectedPeriod = period },
+                                label = { Text(period.label, fontSize = 10.sp) }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Movement Type Chips
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
                         FilterChip(
                             selected = filterType == null,
                             onClick = { filterType = null },
-                            label = { Text("Todas (${movements.size})") },
+                            label = { Text("Todas (${filteredList.size})") },
                             modifier = Modifier.testTag("filter_mov_all")
                         )
                     }
@@ -141,6 +283,34 @@ fun MovementsHistoryScreen(
                             label = { Text("Ajustes de Saldo") },
                             modifier = Modifier.testTag("filter_mov_adjust")
                         )
+                    }
+                }
+
+                if (hasActiveFilters) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${filteredList.size} movimentação(ões) encontrada(s)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        TextButton(
+                            onClick = {
+                                filterQuery = ""
+                                filterType = null
+                                selectedBrand = null
+                                selectedPeriod = MovementPeriodFilter.ALL
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text("Limpar Filtros", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }

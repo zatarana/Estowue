@@ -33,6 +33,7 @@ object BackupManager {
         stockFilter: ExportStockFilter = ExportStockFilter.ALL,
         selectedProductId: Long? = null,
         selectedBrand: String? = null,
+        selectedLocation: String? = null,
         alertDays: Int = 30,
         now: Long = System.currentTimeMillis()
     ): List<ProductWithLots> {
@@ -41,6 +42,9 @@ object BackupManager {
             val matchesCategory = selectedCategory == null || p.category.equals(selectedCategory, ignoreCase = true)
             val matchesProduct = selectedProductId == null || p.id == selectedProductId
             val matchesBrand = selectedBrand == null || p.brand.equals(selectedBrand, ignoreCase = true)
+            val matchesLocation = selectedLocation == null ||
+                p.location.equals(selectedLocation, ignoreCase = true) ||
+                pWithLots.lots.any { it.location.equals(selectedLocation, ignoreCase = true) }
             
             val matchesStock = when (stockFilter) {
                 ExportStockFilter.ALL -> true
@@ -49,7 +53,7 @@ object BackupManager {
                 ExportStockFilter.EXPIRING_SOON -> pWithLots.lots.any { it.quantity > 0.001 && it.daysUntilExpiration(now) in 0..alertDays }
                 ExportStockFilter.POSITIVE_STOCK -> pWithLots.totalQuantity > 0.001
             }
-            matchesCategory && matchesProduct && matchesBrand && matchesStock
+            matchesCategory && matchesProduct && matchesBrand && matchesLocation && matchesStock
         }
     }
 
@@ -60,15 +64,26 @@ object BackupManager {
         movements: List<StockMovement>,
         periodDays: Int? = null,
         movementType: MovementType? = null,
+        selectedBrand: String? = null,
+        selectedProductId: Long? = null,
+        selectedLocation: String? = null,
         discardOnly: Boolean = false,
         now: Long = System.currentTimeMillis()
     ): List<StockMovement> {
         return movements.filter { mov ->
             val matchesPeriod = if (periodDays == null) true else mov.timestamp >= (now - (periodDays.toLong() * 86400000L))
             val matchesType = if (movementType == null) true else mov.type == movementType
-            val matchesDiscard = if (!discardOnly) true else mov.reason.contains("descarte", ignoreCase = true)
+            val matchesBrand = if (selectedBrand == null) true else mov.productBrand.equals(selectedBrand, ignoreCase = true)
+            val matchesProduct = if (selectedProductId == null) true else mov.productId == selectedProductId
+            val matchesLocation = if (selectedLocation == null) true else (
+                mov.reason.contains(selectedLocation, ignoreCase = true) ||
+                mov.notes.contains(selectedLocation, ignoreCase = true)
+            )
+            val matchesDiscard = if (!discardOnly) true else (
+                mov.type == MovementType.DESCARTE_VENCIDO || mov.reason.contains("descarte", ignoreCase = true)
+            )
             
-            matchesPeriod && matchesType && matchesDiscard
+            matchesPeriod && matchesType && matchesBrand && matchesProduct && matchesLocation && matchesDiscard
         }
     }
 
