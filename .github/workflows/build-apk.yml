@@ -31,11 +31,11 @@ jobs:
       - name: Checkout do Código
         uses: actions/checkout@v4
 
-      - name: Configurar JDK 17
+      - name: Configurar JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
@@ -68,23 +68,58 @@ jobs:
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
-      - name: Gerar Gradle Wrapper se necessário
+      - name: Permissões de Execução do Gradle Wrapper
         run: |
           if [ ! -f "./gradlew" ]; then
             gradle wrapper
           fi
           chmod +x ./gradlew
 
-      - name: Compilar APK (Debug)
-        if: "${{ github.event.inputs.build_type != 'release' }}"
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Compilar APK Android
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ -z "$BUILD_TYPE" ]; then
+            BUILD_TYPE="debug"
+          fi
+
+          echo "Iniciando compilação do APK no modo: $BUILD_TYPE"
+
+          if [ "$BUILD_TYPE" = "release" ]; then
+            if [ -f "my-upload-key.jks" ] && [ -n "${{ secrets.STORE_PASSWORD }}" ]; then
+              echo "Compilando Release assinado..."
+              ./gradlew assembleRelease --stacktrace
+            else
+              echo "Keystore de release não configurado. Compilando APK Debug (pronto para instalar)..."
+              ./gradlew assembleDebug --stacktrace
+            fi
+          else
+            echo "Compilando APK Debug..."
+            ./gradlew assembleDebug --stacktrace
+          fi
 
       - name: Renomear e Organizar APK
         run: |
           mkdir -p build-apks
-          find app/build/outputs/apk/ -name "*.apk" -exec cp {} build-apks/ \;
-          ls -la build-apks/
+
+          if [ -d "app/build/outputs/apk" ]; then
+            echo "Localizando APKs em app/build/outputs/apk..."
+            find app/build/outputs/apk -name "*.apk" -exec cp {} build-apks/ \;
+          else
+            echo "Diretório padrão de outputs não encontrado. Varrendo app/build..."
+            find app/build -name "*.apk" -exec cp {} build-apks/ \; 2>/dev/null || true
+          fi
+
+          APK_COUNT=$(find build-apks/ -maxdepth 1 -name "*.apk" | wc -l)
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "ERRO: Nenhum arquivo APK foi encontrado após a compilação!"
+            exit 1
+          fi
+
+          echo "APKs prontos para download ($APK_COUNT encontrado(s)):"
+          ls -lh build-apks/
 
       - name: Disponibilizar APK para Download (Artifacts)
         uses: actions/upload-artifact@v4
