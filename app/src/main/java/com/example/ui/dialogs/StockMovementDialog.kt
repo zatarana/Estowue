@@ -531,8 +531,10 @@ fun StockMovementDialog(
                                                     }
                                                 }
                                             }
+                                            val lotLoc = lot.location.ifBlank { product?.location ?: "" }
+                                            val locSuffix = if (lotLoc.isNotBlank()) " • Local: $lotLoc" else ""
                                             Text(
-                                                text = "Saldo: ${formatQuantity(lot.quantity)} ${product?.unit ?: "un"}",
+                                                text = "Saldo: ${formatQuantity(lot.quantity)} ${product?.unit ?: "un"}$locSuffix",
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -545,6 +547,36 @@ fun StockMovementDialog(
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
+
+                        if (selectedType == MovementType.TRANSFERENCIA) {
+                            val sourceLoc = selectedLot?.location?.ifBlank { product?.location ?: "" } ?: ""
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Origem atual: ${sourceLoc.ifBlank { "Sem Local" }}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
 
                         // Quantidade de Saída
                         OutlinedTextField(

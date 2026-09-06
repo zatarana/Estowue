@@ -122,9 +122,16 @@ fun QuickPdfExportDialog(
     }
 
     val uniqueLocations = remember(productsWithLots) {
-        val prodLocations = productsWithLots.map { it.product.location }.filter { it.isNotBlank() }
-        val lotLocations = productsWithLots.flatMap { it.lots.map { lot -> lot.location } }.filter { it.isNotBlank() }
-        (prodLocations + lotLocations).distinct().sorted()
+        productsWithLots.flatMap { p ->
+            val active = p.lots.filter { it.quantity > 0.001 }
+            if (active.isNotEmpty()) {
+                active.map { it.location.ifBlank { p.product.location } }
+            } else if (p.product.location.isNotBlank()) {
+                listOf(p.product.location)
+            } else {
+                emptyList()
+            }
+        }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
     // Filter products
@@ -159,7 +166,8 @@ fun QuickPdfExportDialog(
             pWithLots.lots
                 .filter { lot ->
                     val hasStock = lot.quantity > 0.001
-                    val matchesLoc = selectedLocationFilter == null || lot.location.equals(selectedLocationFilter, ignoreCase = true) || pWithLots.product.location.equals(selectedLocationFilter, ignoreCase = true)
+                    val effectiveLotLoc = lot.location.ifBlank { pWithLots.product.location }
+                    val matchesLoc = selectedLocationFilter == null || effectiveLotLoc.equals(selectedLocationFilter, ignoreCase = true)
                     hasStock && matchesLoc
                 }
                 .map { lot -> pWithLots.product to lot }

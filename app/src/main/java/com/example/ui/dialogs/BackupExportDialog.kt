@@ -167,9 +167,16 @@ fun BackupExportDialog(
     }
 
     val uniqueLocations = remember(products, productsWithLots) {
-        val pLocs = products.map { it.location }.filter { it.isNotBlank() }
-        val lLocs = productsWithLots.flatMap { it.lots }.map { it.location }.filter { it.isNotBlank() }
-        (pLocs + lLocs).distinct().sorted()
+        productsWithLots.flatMap { p ->
+            val active = p.lots.filter { it.quantity > 0.001 }
+            if (active.isNotEmpty()) {
+                active.map { it.location.ifBlank { p.product.location } }
+            } else if (p.product.location.isNotBlank()) {
+                listOf(p.product.location)
+            } else {
+                emptyList()
+            }
+        }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
     val sortedProducts = remember(products) {

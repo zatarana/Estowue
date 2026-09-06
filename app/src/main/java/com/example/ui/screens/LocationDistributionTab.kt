@@ -29,14 +29,17 @@ fun LocationDistributionTab(
     val now = System.currentTimeMillis()
     
     // Create a list of all active lots wrapped with their product name/unit
-    data class LotDetail(val lot: StockLot, val productName: String, val unit: String)
+    data class LotDetail(val lot: StockLot, val productName: String, val unit: String, val effectiveLocation: String)
     
     val allLots = productsWithLots.flatMap { p -> 
-        p.lots.filter { it.quantity > 0.001 }.map { LotDetail(it, p.product.name, p.product.unit) }
+        p.lots.filter { it.quantity > 0.001 }.map { 
+            val loc = it.location.ifBlank { p.product.location }.ifBlank { "Sem Local" }
+            LotDetail(it, p.product.name, p.product.unit, loc) 
+        }
     }
     
     // Group by location
-    val lotsByLocation = allLots.groupBy { it.lot.location.ifBlank { "Sem Local" } }
+    val lotsByLocation = allLots.groupBy { it.effectiveLocation }
     
     // Calculate totals per location
     data class LocationStats(

@@ -147,9 +147,11 @@ class StockRepository(
         val prevTotalStock = existingLots.sumOf { it.quantity }
         val newTotalStock = prevTotalStock + quantity
 
-        // Find existing active lot with the exact same expiration date to merge, or create new lot
+        // Find existing active lot with the exact same expiration date and same location to merge, or create new lot
+        val targetLocationTrimmed = location.trim()
         val existingLot = existingLots.firstOrNull {
-            kotlin.math.abs(it.expirationDate - expirationDate) < 86400000L // same day
+            kotlin.math.abs(it.expirationDate - expirationDate) < 86400000L &&
+            (targetLocationTrimmed.isBlank() || it.location.equals(targetLocationTrimmed, ignoreCase = true))
         }
         val lotId: Long
         val prevLotStock: Double
@@ -164,7 +166,7 @@ class StockRepository(
                 existingLot.copy(
                     quantity = resultingLotStock,
                     expirationDate = expirationDate,
-                    location = if (location.isNotBlank()) location else existingLot.location
+                    location = if (targetLocationTrimmed.isNotBlank()) targetLocationTrimmed else existingLot.location
                 )
             )
         } else {
@@ -177,13 +179,18 @@ class StockRepository(
                 initialQuantity = quantity,
                 expirationDate = expirationDate,
                 manufacturingDate = manufacturingDate,
-                location = location,
+                location = targetLocationTrimmed,
                 notes = notes
             )
             lotId = lotDao.insertLot(newLot)
         }
 
-        productDao.updateProduct(product.copy(lastUpdated = System.currentTimeMillis()))
+        val updatedProductLocation = if (product.location.isBlank() && targetLocationTrimmed.isNotBlank()) {
+            targetLocationTrimmed
+        } else {
+            product.location
+        }
+        productDao.updateProduct(product.copy(location = updatedProductLocation, lastUpdated = System.currentTimeMillis()))
 
         val movement = StockMovement(
             productId = productId,
@@ -444,7 +451,8 @@ class StockRepository(
         val prevTotalStock = allProductLots.sumOf { it.quantity }
 
         val destLocationTrimmed = destinationLocation.trim()
-        
+        val effectiveSourceLocation = sourceLot.location.ifBlank { product.location }
+
         // Find existing lot in the destination location with same expiration and manufacturing date
         val existingDestLot = allProductLots.firstOrNull {
             it.location.equals(destLocationTrimmed, ignoreCase = true) &&
@@ -455,7 +463,12 @@ class StockRepository(
 
         val sourcePrevQty = sourceLot.quantity
         val sourceNewQty = (sourcePrevQty - quantity).coerceAtLeast(0.0)
-        lotDao.updateLot(sourceLot.copy(quantity = sourceNewQty))
+        lotDao.updateLot(
+            sourceLot.copy(
+                quantity = sourceNewQty,
+                location = effectiveSourceLocation
+            )
+        )
 
         var destLotId: Long
         if (existingDestLot != null) {
@@ -471,7 +484,24 @@ class StockRepository(
             destLotId = lotDao.insertLot(newLot)
         }
 
-        productDao.updateProduct(product.copy(lastUpdated = System.currentTimeMillis()))
+        // Recalculate remaining active lots to update product's primary physical location
+        val updatedLots = lotDao.getLotsForProductDirect(product.id)
+        val activeLots = updatedLots.filter { it.quantity > 0.001 }
+        val newPrimaryLocation = if (activeLots.isNotEmpty()) {
+            if (activeLots.all { it.location.equals(destLocationTrimmed, ignoreCase = true) }) {
+                destLocationTrimmed
+            } else if (sourceNewQty <= 0.001) {
+                // The source lot is now empty; pick location of remaining active lots
+                activeLots.firstOrNull { !it.location.equals(effectiveSourceLocation, ignoreCase = true) }?.location
+                    ?: destLocationTrimmed
+            } else {
+                product.location.ifBlank { destLocationTrimmed }
+            }
+        } else {
+            destLocationTrimmed
+        }
+
+        productDao.updateProduct(product.copy(location = newPrimaryLocation, lastUpdated = System.currentTimeMillis()))
 
         val movement = StockMovement(
             productId = product.id,
@@ -488,7 +518,7 @@ class StockRepository(
             resultingTotalStock = prevTotalStock, // Total stock doesn't change
             reason = reason,
             documentNumber = "TRF-${System.currentTimeMillis() % 10000}",
-            notes = "Transferido de '${sourceLot.location}' para '$destLocationTrimmed'.\n$notes",
+            notes = "Transferido de '${effectiveSourceLocation.ifBlank { "Sem Local" }}' para '$destLocationTrimmed'.\n$notes",
             timestamp = System.currentTimeMillis()
         )
         movementDao.insertMovement(movement)

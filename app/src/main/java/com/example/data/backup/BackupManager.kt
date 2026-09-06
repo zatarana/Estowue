@@ -43,9 +43,13 @@ object BackupManager {
             val matchesCategory = selectedCategory == null || p.category.equals(selectedCategory, ignoreCase = true)
             val matchesProduct = selectedProductId == null || p.id == selectedProductId
             val matchesBrand = selectedBrand == null || p.brand.equals(selectedBrand, ignoreCase = true)
+            val activeLots = pWithLots.lots.filter { it.quantity > 0.001 }
             val matchesLocation = selectedLocation == null ||
-                p.location.equals(selectedLocation, ignoreCase = true) ||
-                pWithLots.lots.any { it.location.equals(selectedLocation, ignoreCase = true) }
+                if (activeLots.isNotEmpty()) {
+                    activeLots.any { (it.location.ifBlank { p.location }).equals(selectedLocation, ignoreCase = true) }
+                } else {
+                    p.location.equals(selectedLocation, ignoreCase = true)
+                }
             
             val matchesStock = when (stockFilter) {
                 ExportStockFilter.ALL -> true

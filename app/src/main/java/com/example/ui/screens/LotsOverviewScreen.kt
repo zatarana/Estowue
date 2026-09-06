@@ -129,25 +129,24 @@ fun LotsOverviewScreen(
         allActiveLotsWithProduct.map { it.first.brand }.filter { it.isNotBlank() }.distinct().sorted()
     }
     val availableLocations = remember(allActiveLotsWithProduct) {
-        val pLocs = allActiveLotsWithProduct.map { it.first.location }.filter { it.isNotBlank() }
-        val lLocs = allActiveLotsWithProduct.map { it.second.location }.filter { it.isNotBlank() }
-        (pLocs + lLocs).distinct().sorted()
+        allActiveLotsWithProduct.map { (prod, lot) ->
+            lot.location.ifBlank { prod.location }
+        }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
     val activeLotsWithProduct = allActiveLotsWithProduct.filter { (product, lot) ->
         val days = lot.daysUntilExpiration(now)
+        val lotEffectiveLocation = lot.location.ifBlank { product.location }
 
         val matchesQuery = lotSearchQuery.isBlank() ||
             product.name.contains(lotSearchQuery, ignoreCase = true) ||
             product.brand.contains(lotSearchQuery, ignoreCase = true) ||
             lot.lotNumber.contains(lotSearchQuery, ignoreCase = true) ||
-            lot.location.contains(lotSearchQuery, ignoreCase = true) ||
-            product.location.contains(lotSearchQuery, ignoreCase = true)
+            lotEffectiveLocation.contains(lotSearchQuery, ignoreCase = true)
 
         val matchesBrand = selectedBrand == null || product.brand.equals(selectedBrand, ignoreCase = true)
         val matchesLocation = selectedLocation == null ||
-            product.location.equals(selectedLocation, ignoreCase = true) ||
-            lot.location.equals(selectedLocation, ignoreCase = true)
+            lotEffectiveLocation.equals(selectedLocation, ignoreCase = true)
 
         val matchesStatus = when (selectedLotStatus) {
             LotStatusFilter.ALL -> true
@@ -630,6 +629,8 @@ fun LotOverviewCard(
                     val subtext = buildString {
                         if (product.brand.isNotBlank()) append("Marca: ${product.brand} • ")
                         append("Cat: ${product.category}")
+                        val loc = lot.location.ifBlank { product.location }
+                        if (loc.isNotBlank()) append(" • Local: $loc")
                         if (product.barcode.isNotBlank()) append(" • EAN: ${product.barcode}")
                     }
                     Text(

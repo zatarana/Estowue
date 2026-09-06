@@ -134,9 +134,16 @@ fun ProductsScreen(
         productsWithLots.map { it.product.brand }.filter { it.isNotBlank() }.distinct().sorted()
     }
     val availableLocations = remember(productsWithLots) {
-        val pLocs = productsWithLots.map { it.product.location }.filter { it.isNotBlank() }
-        val lLocs = productsWithLots.flatMap { it.lots.map { l -> l.location } }.filter { it.isNotBlank() }
-        (pLocs + lLocs).distinct().sorted()
+        productsWithLots.flatMap { p ->
+            val active = p.lots.filter { it.quantity > 0.001 }
+            if (active.isNotEmpty()) {
+                active.map { it.location.ifBlank { p.product.location } }
+            } else if (p.product.location.isNotBlank()) {
+                listOf(p.product.location)
+            } else {
+                emptyList()
+            }
+        }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
     val hasActiveFilters = searchQuery.isNotBlank() || selectedCategory != null || selectedBrand != null || selectedLocation != null || selectedHealth != null || selectedExpFilter != ExpirationFilter.ALL
@@ -621,6 +628,16 @@ fun SimpleProductCard(
 ) {
     val product = productWithLots.product
     val activeLots = productWithLots.lots.filter { it.quantity > 0.001 }
+    val activeLocations = remember(productWithLots) {
+        if (activeLots.isNotEmpty()) {
+            activeLots.map { it.location.ifBlank { product.location } }.filter { it.isNotBlank() }.distinct()
+        } else if (product.location.isNotBlank()) {
+            listOf(product.location)
+        } else {
+            emptyList()
+        }
+    }
+    val locationDisplay = activeLocations.joinToString(", ")
     var isExpanded by remember { mutableStateOf(false) }
 
     val matchedCategory = categories.find { it.name.equals(product.category, ignoreCase = true) }
@@ -725,9 +742,9 @@ fun SimpleProductCard(
                             )
                         }
 
-                        if (product.location.isNotBlank()) {
+                        if (locationDisplay.isNotBlank()) {
                             Text(
-                                text = "• ${product.location}",
+                                text = "• $locationDisplay",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -826,7 +843,7 @@ fun SimpleProductCard(
                     // Secondary Details (Barcode, Location, Min Stock)
                     val details = mutableListOf<String>()
                     if (product.barcode.isNotBlank()) details.add("EAN: ${product.barcode}")
-                    if (product.location.isNotBlank()) details.add("Local: ${product.location}")
+                    if (locationDisplay.isNotBlank()) details.add("Local: $locationDisplay")
                     if (product.minStock > 0) details.add("Mínimo: ${formatQuantity(product.minStock)} ${product.unit}")
 
                     if (details.isNotEmpty()) {
@@ -974,7 +991,8 @@ fun SimpleProductCard(
                                                 fontSize = 11.sp,
                                                 color = if (isExpired) RoseRed else MaterialTheme.colorScheme.onSurface
                                             )
-                                            val lotLocStr = if (lot.location.isNotBlank()) " | Loc: ${lot.location}" else ""
+                                            val effectiveLotLoc = lot.location.ifBlank { product.location }
+                                            val lotLocStr = if (effectiveLotLoc.isNotBlank()) " | Loc: $effectiveLotLoc" else ""
                                             Text(
                                                 text = "Saldo: ${formatQuantity(lot.quantity)} ${product.unit}$lotLocStr",
                                                 fontSize = 10.sp,

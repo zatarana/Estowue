@@ -188,9 +188,13 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
             val matchesCategory = params.category == null || product.category.equals(params.category, ignoreCase = true)
             val matchesBrand = params.brand == null || product.brand.equals(params.brand, ignoreCase = true)
+            val activeLots = pWithLots.lots.filter { it.quantity > 0.001 }
             val matchesLocation = params.location == null ||
-                product.location.equals(params.location, ignoreCase = true) ||
-                pWithLots.lots.any { it.location.equals(params.location, ignoreCase = true) }
+                if (activeLots.isNotEmpty()) {
+                    activeLots.any { (it.location.ifBlank { product.location }).equals(params.location, ignoreCase = true) }
+                } else {
+                    product.location.equals(params.location, ignoreCase = true)
+                }
 
             val matchesHealth = params.health == null || pWithLots.stockHealthStatus == params.health
 
@@ -356,6 +360,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 sourceLotId, quantity, destinationLocation, reason, notes
             )
             if (result.isSuccess) {
+                if (destinationLocation.isNotBlank()) {
+                    settingsManager.addLocation(destinationLocation.trim())
+                }
                 _uiEvents.emit("Transferência registrada com sucesso!")
                 notifyLocalDataChanged()
             } else {
