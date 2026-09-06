@@ -1,0 +1,39 @@
+            } else if (selectedTab == 1) {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(brands) { brand ->
+                        StringListItem(
+                            text = brand,
+                            onEdit = { 
+                                stringType = "Marca"
+                                stringToEdit = brand
+                                showStringDialog = true 
+                            },
+                            onDelete = { onRemoveBrand(brand) }
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(locations) { loc ->
+                        StringListItem(
+                            text = loc,
+                            onEdit = {
+                                stringType = "Local"
+                                stringToEdit = loc
+                                showStringDialog = true
+                            },
+                            onDelete = { onRemoveLocation(loc) }
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                }
+            }

@@ -1,0 +1,15 @@
+    if (showStringDialog) {
+        StringEditDialog(
+            initialText = stringToEdit,
+            title = if (stringToEdit.isEmpty()) "Nova $stringType" else "Editar $stringType",
+            onDismiss = { showStringDialog = false },
+            onSave = { newString, oldString ->
+                if (stringType == "Marca") {
+                    if (oldString.isEmpty()) onAddBrand(newString) else onEditBrand(oldString, newString)
+                } else {
+                    if (oldString.isEmpty()) onAddLocation(newString) else onEditLocation(oldString, newString)
+                }
+                showStringDialog = false
+            }
+        )
+    }

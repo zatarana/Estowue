@@ -1,0 +1,6 @@
+{
+  "name": "Controle de Estoque",
+  "description": "Controle de estoque simples focado em saldos físicos, gestão de lotes, prazos de validade e movimentações pelo método FEFO/PVPS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
