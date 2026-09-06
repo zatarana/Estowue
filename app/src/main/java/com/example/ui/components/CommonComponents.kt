@@ -58,6 +58,7 @@ import com.example.ui.theme.RoseRedLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 fun formatQuantity(value: Double, unit: String = ""): String {
     val isInteger = value % 1.0 == 0.0
@@ -65,10 +66,16 @@ fun formatQuantity(value: Double, unit: String = ""): String {
     return if (unit.isNotBlank()) "$formatted $unit" else formatted
 }
 
-fun parseHexColor(hex: String, defaultColor: Color = Color(0xFF3B82F6)): Color {
+fun parseHexColor(hex: String?, defaultColor: Color = Color(0xFF3B82F6)): Color {
+    if (hex.isNullOrBlank()) return defaultColor
     return try {
-        if (hex.isBlank()) defaultColor
-        else Color(android.graphics.Color.parseColor(if (hex.startsWith("#")) hex else "#$hex"))
+        val cleanHex = hex.trim().removePrefix("#")
+        val colorInt = cleanHex.toLong(16)
+        when (cleanHex.length) {
+            6 -> Color((0xFF000000 or colorInt).toInt())
+            8 -> Color(colorInt.toInt())
+            else -> defaultColor
+        }
     } catch (e: Exception) {
         defaultColor
     }
@@ -114,7 +121,7 @@ fun ExpirationBadge(
             RoseRedLight,
             RoseRed,
             Icons.Default.ErrorOutline,
-            "Vencido (${Math.abs(days)}d atrás)"
+            "Vencido (${abs(days)}d atrás)"
         )
         days == 0L -> Quadruple(
             RoseRedLight,

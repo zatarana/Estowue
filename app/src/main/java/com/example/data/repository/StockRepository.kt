@@ -280,48 +280,57 @@ class StockRepository(
         newNotes: String
     ): Result<StockMovement> {
         return db.withTransaction {
-        val movement = movementDao.getMovementById(movementId)
-            ?: return@withTransaction Result.failure(IllegalArgumentException("Movimentação não encontrada"))
+            val movement = movementDao.getMovementById(movementId)
+                ?: return@withTransaction Result.failure(IllegalArgumentException("Movimentação não encontrada"))
 
-        if (movement.type == MovementType.TRANSFERENCIA) {
-            return@withTransaction Result.failure(IllegalStateException("Edição de Transferência não suportada diretamente."))
-        }
-
-        val lot = movement.lotId?.let { lotDao.getLotByIdDirect(it) }
-        val qtyDifference = newQuantity - movement.quantity
-
-        if (lot != null) {
-            val adjustedLotQty = when (movement.type) {
-                MovementType.ENTRADA -> lot.quantity + qtyDifference
-                MovementType.SAIDA, MovementType.DESCARTE_VENCIDO -> lot.quantity - qtyDifference
-                MovementType.AJUSTE -> newQuantity
-                MovementType.TRANSFERENCIA -> lot.quantity // handled above
+            if (movement.type == MovementType.TRANSFERENCIA) {
+                return@withTransaction Result.failure(IllegalStateException("Edição de Transferência não suportada diretamente."))
             }
 
-            if (adjustedLotQty < -0.001) {
-                return@withTransaction Result.failure(
-                    IllegalStateException("A correção resultaria em saldo negativo no lote (${String.format("%.2f", adjustedLotQty)}).")
+            val lot = movement.lotId?.let { lotDao.getLotByIdDirect(it) }
+            val qtyDifference = newQuantity - movement.quantity
+            var adjustedLotQty = lot?.quantity ?: 0.0
+
+            if (lot != null) {
+                adjustedLotQty = when (movement.type) {
+                    MovementType.ENTRADA -> lot.quantity + qtyDifference
+                    MovementType.SAIDA, MovementType.DESCARTE_VENCIDO -> lot.quantity - qtyDifference
+                    MovementType.AJUSTE -> newQuantity
+                    MovementType.TRANSFERENCIA -> lot.quantity
+                }
+
+                if (adjustedLotQty < -0.001) {
+                    return@withTransaction Result.failure(
+                        IllegalStateException("A correção resultaria em saldo negativo no lote (${String.format("%.2f", adjustedLotQty)}).")
+                    )
+                }
+
+                val updatedLot = lot.copy(
+                    quantity = adjustedLotQty.coerceAtLeast(0.0),
+                    expirationDate = newExpirationDate ?: lot.expirationDate
                 )
+                lotDao.updateLot(updatedLot)
             }
 
-            val updatedLot = lot.copy(
-                quantity = adjustedLotQty.coerceAtLeast(0.0),
-                expirationDate = newExpirationDate ?: lot.expirationDate
+            val product = productDao.getProductByIdDirect(movement.productId)
+            if (product != null) {
+                productDao.updateProduct(product.copy(lastUpdated = System.currentTimeMillis()))
+            }
+            val allProductLots = lotDao.getLotsForProductDirect(movement.productId)
+            val newTotalStock = allProductLots.sumOf { it.quantity }
+
+            val updatedMovement = movement.copy(
+                quantity = newQuantity,
+                lotExpirationDate = newExpirationDate ?: movement.lotExpirationDate,
+                resultingLotStock = if (lot != null) adjustedLotQty.coerceAtLeast(0.0) else movement.resultingLotStock,
+                resultingTotalStock = newTotalStock,
+                reason = newReason,
+                documentNumber = newDocumentNumber,
+                notes = newNotes
             )
-            lotDao.updateLot(updatedLot)
+            movementDao.updateMovement(updatedMovement)
+            return@withTransaction Result.success(updatedMovement)
         }
-
-        val updatedMovement = movement.copy(
-            quantity = newQuantity,
-            lotExpirationDate = newExpirationDate ?: movement.lotExpirationDate,
-            resultingLotStock = if (lot != null) (lot.quantity + (if (movement.type == MovementType.ENTRADA) qtyDifference else -qtyDifference)).coerceAtLeast(0.0) else movement.resultingLotStock,
-            reason = newReason,
-            documentNumber = newDocumentNumber,
-            notes = newNotes
-        )
-        movementDao.updateMovement(updatedMovement)
-        return@withTransaction Result.success(updatedMovement)
-            }
     }
 
 
@@ -330,27 +339,32 @@ class StockRepository(
      */
     suspend fun deleteOrReverseMovement(movementId: Long): Result<Boolean> {
         return db.withTransaction {
-        val movement = movementDao.getMovementById(movementId)
-            ?: return@withTransaction Result.failure(IllegalArgumentException("Movimentação não encontrada"))
+            val movement = movementDao.getMovementById(movementId)
+                ?: return@withTransaction Result.failure(IllegalArgumentException("Movimentação não encontrada"))
 
-        if (movement.type == MovementType.TRANSFERENCIA) {
-            return@withTransaction Result.failure(IllegalStateException("Reversão de Transferência não suportada diretamente."))
-        }
-
-        val lot = movement.lotId?.let { lotDao.getLotByIdDirect(it) }
-        if (lot != null) {
-            val restoredQty = when (movement.type) {
-                MovementType.ENTRADA -> (lot.quantity - movement.quantity).coerceAtLeast(0.0)
-                MovementType.SAIDA, MovementType.DESCARTE_VENCIDO -> (lot.quantity + movement.quantity)
-                MovementType.AJUSTE -> lot.quantity // Keep current for adjustment reversal
-                MovementType.TRANSFERENCIA -> lot.quantity
+            if (movement.type == MovementType.TRANSFERENCIA) {
+                return@withTransaction Result.failure(IllegalStateException("Reversão de Transferência não suportada diretamente."))
             }
-            lotDao.updateLot(lot.copy(quantity = restoredQty))
-        }
 
-        movementDao.deleteMovement(movement)
-        return@withTransaction Result.success(true)
+            val lot = movement.lotId?.let { lotDao.getLotByIdDirect(it) }
+            if (lot != null) {
+                val restoredQty = when (movement.type) {
+                    MovementType.ENTRADA -> (lot.quantity - movement.quantity).coerceAtLeast(0.0)
+                    MovementType.SAIDA, MovementType.DESCARTE_VENCIDO -> (lot.quantity + movement.quantity)
+                    MovementType.AJUSTE -> lot.quantity // Keep current for adjustment reversal
+                    MovementType.TRANSFERENCIA -> lot.quantity
+                }
+                lotDao.updateLot(lot.copy(quantity = restoredQty))
             }
+
+            val product = productDao.getProductByIdDirect(movement.productId)
+            if (product != null) {
+                productDao.updateProduct(product.copy(lastUpdated = System.currentTimeMillis()))
+            }
+
+            movementDao.deleteMovement(movement)
+            return@withTransaction Result.success(true)
+        }
     }
 
 

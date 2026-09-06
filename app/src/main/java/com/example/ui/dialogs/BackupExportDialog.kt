@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,6 +59,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -289,16 +292,36 @@ fun BackupExportDialog(
                 // Navigation Tabs
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = RoyalBlue,
+                            height = 3.dp
+                        )
+                    }
                 ) {
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Nuvem Online", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CloudQueue,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == 0) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Nuvem Online",
+                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 0) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     )
@@ -306,10 +329,23 @@ fun BackupExportDialog(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("PDF / Drive / CSV", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == 1) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Relatórios & Arquivos",
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 1) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     )
@@ -317,10 +353,23 @@ fun BackupExportDialog(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
                         text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Restaurar", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == 2) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Restaurar",
+                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 2) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     )
@@ -590,7 +639,7 @@ fun BackupExportDialog(
                             // Action Buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Button(
                                     onClick = {
@@ -607,20 +656,25 @@ fun BackupExportDialog(
                                         }
                                     },
                                     enabled = !isCloudUploading && !isCloudDownloading,
-                                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = RoyalBlue,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                                     modifier = Modifier
                                         .weight(1f)
+                                        .height(50.dp)
                                         .testTag("btn_cloud_upload")
                                 ) {
                                     if (isCloudUploading) {
-                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Enviando...", fontSize = 12.sp)
+                                        Text("Enviando...", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     } else {
-                                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Enviar p/ Nuvem", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("Enviar p/ Nuvem", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
@@ -633,19 +687,21 @@ fun BackupExportDialog(
                                         showCloudDownloadConfirmDialog = true
                                     },
                                     enabled = !isCloudUploading && !isCloudDownloading,
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                                     modifier = Modifier
                                         .weight(1f)
+                                        .height(50.dp)
                                         .testTag("btn_cloud_download")
                                 ) {
                                     if (isCloudDownloading) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Baixando...", fontSize = 12.sp)
+                                        Text("Baixando...", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     } else {
-                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Baixar da Nuvem", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("Baixar da Nuvem", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -871,27 +927,41 @@ fun BackupExportDialog(
                     // Option 0: PDF Report Export
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Relatório Formatado em PDF",
-                                    fontWeight = FontWeight.Bold,
-                                    color = RoyalBlue,
-                                    fontSize = 13.sp
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(RoyalBlue.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Relatório Formatado em PDF",
+                                        fontWeight = FontWeight.Bold,
+                                        color = RoyalBlue,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Layout A4 profissional para impressão e envio",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Gera um documento PDF profissional com paginação, cabeçalho da empresa, tabela de lotes e resumo executivo.",
-                                fontSize = 11.sp,
+                                text = "Gera um documento PDF oficial com cabeçalho da empresa, tabela detalhada de lotes, estoque mínimo e resumo executivo.",
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Button(
                                 onClick = {
@@ -916,43 +986,68 @@ fun BackupExportDialog(
                                     }
                                 },
                                 enabled = filteredProductsWithLots.isNotEmpty(),
-                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth().testTag("btn_export_pdf_dialog")
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = RoyalBlue,
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("btn_export_pdf_dialog")
                             ) {
-                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Gerar e Abrir PDF (${filteredProductsWithLots.size} itens)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Gerar e Abrir Relatório PDF (${filteredProductsWithLots.size} itens)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Option 1: Drive / JSON
                     Card(
                         colors = CardDefaults.cardColors(containerColor = RoyalBlue.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Salvar no Google Drive / JSON",
-                                    fontWeight = FontWeight.Bold,
-                                    color = RoyalBlue,
-                                    fontSize = 13.sp
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(RoyalBlue.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.CloudUpload, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Salvar no Google Drive / JSON",
+                                        fontWeight = FontWeight.Bold,
+                                        color = RoyalBlue,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Backup completo de segurança",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Gera o arquivo de backup para envio direto ao Google Drive, WhatsApp ou armazenamento local.",
-                                fontSize = 11.sp,
+                                text = "Gera o arquivo de backup para envio direto ao Google Drive, WhatsApp ou armazenamento em nuvem.",
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -974,13 +1069,20 @@ fun BackupExportDialog(
                                             mimeType = "application/json"
                                         )
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f).testTag("btn_export_drive")
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = RoyalBlue,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .testTag("btn_export_drive")
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Salvar no Drive", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Salvar no Drive", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 FilledTonalButton(
@@ -995,40 +1097,58 @@ fun BackupExportDialog(
                                         clipboardManager.setText(AnnotatedString(backupJson))
                                         Toast.makeText(context, "JSON copiado com sucesso!", Toast.LENGTH_SHORT).show()
                                     },
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                    modifier = Modifier.height(48.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copiar JSON", modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copiar JSON", modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Copiar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Option 2: CSV
                     Card(
                         colors = CardDefaults.cardColors(containerColor = EmeraldGreen.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Description, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Planilha CSV (Excel / Sheets)",
-                                    fontWeight = FontWeight.Bold,
-                                    color = EmeraldGreen,
-                                    fontSize = 13.sp
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(EmeraldGreen.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Description, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Planilha CSV (Excel / Sheets)",
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldGreen,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Para análise no Excel, LibreOffice e Google Sheets",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Planilha com estoque mínimo, saldos, validades e locais de armazenamento dos itens filtrados.",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1047,13 +1167,20 @@ fun BackupExportDialog(
                                             mimeType = "text/csv"
                                         )
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f).testTag("btn_export_csv")
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = EmeraldGreen,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .testTag("btn_export_csv")
                                 ) {
-                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Exportar CSV", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Exportar CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 FilledTonalButton(
@@ -1070,11 +1197,13 @@ fun BackupExportDialog(
                                             title = "Relatorio_Estoque_${System.currentTimeMillis()}.txt"
                                         )
                                     },
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                    modifier = Modifier.height(48.dp)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = "Compartilhar Relatório", modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.Share, contentDescription = "Compartilhar Relatório", modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Relatório", fontSize = 11.sp)
+                                    Text("Texto", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1086,7 +1215,7 @@ fun BackupExportDialog(
                     Text(
                         text = "Restaurar Backup do Estoque:",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 15.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -1118,12 +1247,16 @@ fun BackupExportDialog(
                             }
                         },
                         enabled = restoreJsonText.isNotBlank(),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("btn_confirm_restore")
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("btn_confirm_restore")
                     ) {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null)
+                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Restaurar Dados do Texto")
+                        Text("Restaurar Dados do Texto", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -1131,10 +1264,13 @@ fun BackupExportDialog(
 
                 OutlinedButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
                 ) {
-                    Text("Fechar")
+                    Text("Fechar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

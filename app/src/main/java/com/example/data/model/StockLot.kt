@@ -32,11 +32,26 @@ data class StockLot(
     val createdAt: Long = System.currentTimeMillis()
 ) {
     /**
-     * Number of full days until expiration (can be negative if expired).
+     * Number of full calendar days until expiration (can be negative if expired).
+     * Normalizes both timestamps to midnight so hourly variations do not cause off-by-one days.
      */
     fun daysUntilExpiration(currentTime: Long = System.currentTimeMillis()): Long {
-        val diffMs = expirationDate - currentTime
-        return TimeUnit.MILLISECONDS.toDays(diffMs)
+        val calExp = java.util.Calendar.getInstance().apply {
+            timeInMillis = expirationDate
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val calNow = java.util.Calendar.getInstance().apply {
+            timeInMillis = currentTime
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val diffMs = calExp.timeInMillis - calNow.timeInMillis
+        return diffMs / 86_400_000L
     }
 
     fun getStatus(currentTime: Long = System.currentTimeMillis(), alertDays: Int = 30): LotExpirationStatus {

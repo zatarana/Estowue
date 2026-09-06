@@ -55,7 +55,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.model.Category
 import com.example.data.model.Product
 import com.example.ui.components.BarcodeScannerDialog
-import com.example.ui.screens.parseHexColor
+import com.example.ui.components.parseHexColor
 
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions

@@ -87,8 +87,25 @@ fun EditMovementDialog(
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showReverseConfirmDialog by rememberSaveable { mutableStateOf(false) }
 
+    val initialUtcMillis = remember(expirationDate) {
+        val target = expirationDate ?: System.currentTimeMillis()
+        val localCal = java.util.Calendar.getInstance().apply {
+            timeInMillis = target
+        }
+        val utcCal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            set(java.util.Calendar.YEAR, localCal.get(java.util.Calendar.YEAR))
+            set(java.util.Calendar.MONTH, localCal.get(java.util.Calendar.MONTH))
+            set(java.util.Calendar.DAY_OF_MONTH, localCal.get(java.util.Calendar.DAY_OF_MONTH))
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        utcCal.timeInMillis
+    }
+
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = expirationDate ?: System.currentTimeMillis()
+        initialSelectedDateMillis = initialUtcMillis
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -309,8 +326,20 @@ fun EditMovementDialog(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            expirationDate = it
+                        datePickerState.selectedDateMillis?.let { utcMillis ->
+                            val utcCal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = utcMillis
+                            }
+                            val localCal = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.YEAR, utcCal.get(java.util.Calendar.YEAR))
+                                set(java.util.Calendar.MONTH, utcCal.get(java.util.Calendar.MONTH))
+                                set(java.util.Calendar.DAY_OF_MONTH, utcCal.get(java.util.Calendar.DAY_OF_MONTH))
+                                set(java.util.Calendar.HOUR_OF_DAY, 12)
+                                set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }
+                            expirationDate = localCal.timeInMillis
                         }
                         showDatePicker = false
                     }

@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.Category
+import com.example.ui.components.parseHexColor
 import com.example.ui.theme.RoseRed
 
 val PRESET_CATEGORY_COLORS = listOf(
@@ -75,22 +76,6 @@ val PRESET_CATEGORY_COLORS = listOf(
     "#EC4899", // Pink
     "#64748B"  // Slate
 )
-
-fun parseHexColor(hex: String, fallback: Color = Color(0xFF3B82F6)): Color {
-    return try {
-        val cleanHex = hex.removePrefix("#")
-        val colorInt = cleanHex.toLong(16)
-        if (cleanHex.length == 6) {
-            Color((0xFF000000 or colorInt).toInt())
-        } else if (cleanHex.length == 8) {
-            Color(colorInt.toInt())
-        } else {
-            fallback
-        }
-    } catch (e: Exception) {
-        fallback
-    }
-}
 
 @Composable
 fun CategoriesScreen(

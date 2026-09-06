@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import kotlin.math.abs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -553,7 +554,7 @@ fun ReportsScreen(
                                     ) {
                                         Text(
                                             text = when {
-                                                days < 0 -> "Vencido (${Math.abs(days)}d)"
+                                                days < 0 -> "Vencido (${abs(days)}d)"
                                                 days == 0L -> "Vence Hoje!"
                                                 else -> "Restam $days dias"
                                             },

@@ -2,6 +2,7 @@ package com.example.data.backup
 
 import android.content.Context
 import android.content.Intent
+import kotlin.math.abs
 import com.example.data.model.Category
 import com.example.data.model.MovementType
 import com.example.data.model.Product
@@ -298,7 +299,7 @@ object BackupManager {
                 pLots.sortedBy { it.expirationDate }.forEach { lot ->
                     val d = lot.daysUntilExpiration(now)
                     val statusTxt = when {
-                        d < 0 -> "❌ VENCIDO (${Math.abs(d)}d atrás)"
+                        d < 0 -> "❌ VENCIDO (${abs(d)}d atrás)"
                         d <= (alertDays / 2).coerceAtLeast(7) -> "⚠️ CRÍTICO ($d dias)"
                         d <= alertDays -> "⏰ ATENÇÃO ($d dias)"
                         else -> "✅ Válido ($d dias)"
